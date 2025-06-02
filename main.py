@@ -1,21 +1,18 @@
 from fastapi import FastAPI, Request
-import os  # To access environment variables
-import uvicorn
+import os
+import requests
 
-# Load the app
 app = FastAPI()
 
-# ✅ Load secrets from environment variables (Render will provide these)
 CLIENT_ID = os.environ["CLIENT_ID"]
 CLIENT_SECRET = os.environ["CLIENT_SECRET"]
 REDIRECT_URI = os.environ["REDIRECT_URI"]
 
-# ✅ Base URL for Exact's OAuth flow
 EXACT_AUTH_URL = "https://start.exactonline.nl/api/oauth2/auth"
+EXACT_TOKEN_URL = "https://start.exactonline.nl/api/oauth2/token"
 
 @app.get("/")
 def home():
-    # Link to start OAuth login — Exact Online will redirect back to our /callback
     login_url = (
         f"{EXACT_AUTH_URL}"
         f"?client_id={CLIENT_ID}"
@@ -29,11 +26,33 @@ def home():
 
 @app.get("/callback")
 def oauth_callback(request: Request):
-    # When Exact redirects here, it'll include something like ?code=abc123
     code = request.query_params.get("code")
+    if not code:
+        return {"error": "No code in request"}
+
+    # 🔄 Exchange code for token
+    token_response = requests.post(EXACT_TOKEN_URL, data={
+        "grant_type": "authorization_code",
+        "code": code,
+        "redirect_uri": REDIRECT_URI,
+        "client_id": CLIENT_ID,
+        "client_secret": CLIENT_SECRET,
+    })
+
+    if token_response.status_code != 200:
+        return {
+            "error": "Token request failed",
+            "status_code": token_response.status_code,
+            "response": token_response.text
+        }
+
+    token_data = token_response.json()
+
     return {
-        "message": "Got the code from Exact!",
-        "code": code
+        "message": "Successfully got access token!",
+        "access_token": token_data.get("access_token"),
+        "refresh_token": token_data.get("refresh_token"),
+        "expires_in": token_data.get("expires_in")
     }
 
 
