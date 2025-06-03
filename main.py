@@ -1,8 +1,10 @@
 from fastapi import FastAPI, Request
-import os
-import requests
+from fastapi.responses import HTMLResponse
+from fastapi.templating import Jinja2Templates
+import os, requests
 
 app = FastAPI()
+templates = Jinja2Templates(directory="templates")
 
 # 🔐 Load secrets from environment (from Render)
 CLIENT_ID = os.environ["CLIENT_ID"]
@@ -13,18 +15,15 @@ REDIRECT_URI = os.environ["REDIRECT_URI"]
 EXACT_AUTH_URL = "https://start.exactonline.nl/api/oauth2/auth"
 EXACT_TOKEN_URL = "https://start.exactonline.nl/api/oauth2/token"
 
-@app.get("/")
-def home():
+@app.get("/", response_class=HTMLResponse)
+def home(request: Request):
     login_url = (
-        f"{EXACT_AUTH_URL}"
-        f"?client_id={CLIENT_ID}"
-        f"&redirect_uri={REDIRECT_URI}"
+        f"https://start.exactonline.nl/api/oauth2/auth"
+        f"?client_id={os.environ['CLIENT_ID']}"
+        f"&redirect_uri={os.environ['REDIRECT_URI']}"
         f"&response_type=code"
     )
-    return {
-        "message": "Welcome to your Exact Online test app!",
-        "login_url": login_url
-    }
+    return templates.TemplateResponse("index.html", {"request": request, "login_url": login_url})
 
 @app.get("/callback")
 def oauth_callback(request: Request):
